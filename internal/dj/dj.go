@@ -16,7 +16,7 @@ type danceFloorManager interface {
 }
 
 type notifier interface {
-	Send(ctx context.Context, channelID string, notificationToSend notification.Notification) error
+	Send(ctx context.Context, channelID string, notificationToSend []notification.Notification) error
 }
 
 type channelManager interface {

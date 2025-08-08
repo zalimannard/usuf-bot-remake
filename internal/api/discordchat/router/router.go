@@ -64,6 +64,10 @@ func (r *Router) OnNewMessage(s *discordgo.Session, m *discordgo.MessageCreate) 
 		os.Exit(0)
 	}
 
+	if commandName == "help" {
+		args = []string{r.prefix}
+	}
+
 	r.channelManager.Set(context.Background(), id.ParseGroupExternal(m.GuildID), m.ChannelID)
 
 	executeCommand, isRegistered := r.executeByName[commandName]

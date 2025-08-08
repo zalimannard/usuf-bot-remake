@@ -16,6 +16,7 @@ import (
 	"usuf-bot-remake/internal/provider/trackprovider"
 	"usuf-bot-remake/internal/provider/userprovider"
 	"usuf-bot-remake/internal/usecase/groupuc"
+	"usuf-bot-remake/internal/usecase/helpuc"
 	"usuf-bot-remake/internal/usecase/loopquc"
 	"usuf-bot-remake/internal/usecase/loopuc"
 	"usuf-bot-remake/internal/usecase/playuc"
@@ -33,6 +34,7 @@ type Application struct {
 	loopUseCase   *loopuc.UseCase
 	loopqUseCase  *loopquc.UseCase
 	randomUseCase *randomuc.UseCase
+	helpUseCase   *helpuc.UseCase
 }
 
 func New(session *discord.Discord, channelManager *discordchannelmanager.Manager) *Application {
@@ -62,6 +64,7 @@ func New(session *discord.Discord, channelManager *discordchannelmanager.Manager
 	loopUseCase := loopuc.New(diskJockey, queueProvider, trackProvider)
 	loopqUseCase := loopquc.New(diskJockey, queueProvider, trackProvider)
 	randomUseCase := randomuc.New(diskJockey, queueProvider, trackProvider)
+	helpUseCase := helpuc.New(diskJockey)
 
 	djStand.SetSkipUseCase(skipUseCase)
 
@@ -73,6 +76,7 @@ func New(session *discord.Discord, channelManager *discordchannelmanager.Manager
 		loopUseCase:   loopUseCase,
 		loopqUseCase:  loopqUseCase,
 		randomUseCase: randomUseCase,
+		helpUseCase:   helpUseCase,
 	}
 }
 
@@ -102,4 +106,8 @@ func (a *Application) LoopqUseCase() *loopquc.UseCase {
 
 func (a *Application) RandomUseCase() *randomuc.UseCase {
 	return a.randomUseCase
+}
+
+func (a *Application) HelpUseCase() *helpuc.UseCase {
+	return a.helpUseCase
 }
