@@ -2,7 +2,6 @@ package playc
 
 import (
 	"context"
-	"errors"
 	"net/url"
 )
 
@@ -10,9 +9,6 @@ var (
 	names       = []string{"play", "p"}
 	parameters  = []string{"URL", "Запрос"}
 	description = "Добавить трек(и) в конец очереди"
-
-	ErrFailedToPlayByURLs  = errors.New("failed to play by urls")
-	ErrFailedToPlayByQuery = errors.New("failed to play by query")
 )
 
 type playUseCase interface {
@@ -20,13 +16,8 @@ type playUseCase interface {
 	PlayByQuery(ctx context.Context, query string) error
 }
 
-type alertUseCase interface {
-	SendError(err error)
-}
-
 type Command struct {
-	playUseCase  playUseCase
-	alertUseCase alertUseCase
+	playUseCase playUseCase
 }
 
 func New(playUseCase playUseCase) *Command {

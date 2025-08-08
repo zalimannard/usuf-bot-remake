@@ -62,8 +62,9 @@ func (u *UseCase) skip(ctx context.Context, groupID id.Group) error {
 		generatedNumber := currentQueue.CurrentNumber()
 		for generatedNumber == currentQueue.CurrentNumber() {
 			rand.Seed(time.Now().UnixNano())
-			nextNumber = rand.Intn(currentQueue.Length()) + 1
+			generatedNumber = rand.Intn(currentQueue.Length()) + 1
 		}
+		nextNumber = generatedNumber
 	default:
 		return fmt.Errorf("unknown order type: %s", currentQueue.OrderType())
 	}

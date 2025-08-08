@@ -7,24 +7,30 @@ import (
 	"strings"
 	"usuf-bot-remake/internal/api/discordchat/command"
 	"usuf-bot-remake/internal/api/discordchat/middleware"
+	"usuf-bot-remake/internal/domain/entity/id"
 	"usuf-bot-remake/pkg/logger"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 )
 
+type channelManager interface {
+	Set(ctx context.Context, externalGroupID id.GroupExternal, channelID string)
+}
+
 type Config interface {
 	Prefix() string
 }
 
 type Router struct {
-	prefix        string
-	middleware    *middleware.Middleware
-	executeByName map[string]func(ctx context.Context, args []string)
-	log           *logger.Logger
+	channelManager channelManager
+	prefix         string
+	middleware     *middleware.Middleware
+	executeByName  map[string]func(ctx context.Context, args []string)
+	log            *logger.Logger
 }
 
-func New(cfg Config, middleware *middleware.Middleware, commands []command.Command, log *logger.Logger) *Router {
+func New(cfg Config, channelManager channelManager, middleware *middleware.Middleware, commands []command.Command, log *logger.Logger) *Router {
 	executeByName := make(map[string]func(ctx context.Context, args []string))
 	for i := range commands {
 		for j := range commands[i].Names() {
@@ -33,10 +39,11 @@ func New(cfg Config, middleware *middleware.Middleware, commands []command.Comma
 	}
 
 	return &Router{
-		prefix:        cfg.Prefix(),
-		middleware:    middleware,
-		executeByName: executeByName,
-		log:           log,
+		prefix:         cfg.Prefix(),
+		channelManager: channelManager,
+		middleware:     middleware,
+		executeByName:  executeByName,
+		log:            log,
 	}
 }
 
@@ -56,6 +63,8 @@ func (r *Router) OnNewMessage(s *discordgo.Session, m *discordgo.MessageCreate) 
 		fmt.Println("Resetting...")
 		os.Exit(0)
 	}
+
+	r.channelManager.Set(context.Background(), id.ParseGroupExternal(m.GuildID), m.ChannelID)
 
 	executeCommand, isRegistered := r.executeByName[commandName]
 	if !isRegistered {

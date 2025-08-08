@@ -24,7 +24,6 @@ RUN apt-get update && \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем yt-dlp через pip (с разрешением на установку в системный Python)
 RUN pip3 install --no-cache-dir --break-system-packages yt-dlp
 
 COPY --from=builder /app/bin/usuf-bot /usr/local/bin/app

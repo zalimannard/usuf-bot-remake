@@ -3,6 +3,7 @@ package app
 import (
 	"usuf-bot-remake/internal/api/djstand"
 	"usuf-bot-remake/internal/dj"
+	discordchannelmanager "usuf-bot-remake/internal/infrastructure/channelmanager/discord"
 	dancefloormanager "usuf-bot-remake/internal/infrastructure/dancefloor/manager"
 	discordnotifier "usuf-bot-remake/internal/infrastructure/notifier/discord"
 	grouprepoinmemory "usuf-bot-remake/internal/infrastructure/repository/grouprepo/inmemory"
@@ -15,20 +16,26 @@ import (
 	"usuf-bot-remake/internal/provider/trackprovider"
 	"usuf-bot-remake/internal/provider/userprovider"
 	"usuf-bot-remake/internal/usecase/groupuc"
+	"usuf-bot-remake/internal/usecase/loopquc"
+	"usuf-bot-remake/internal/usecase/loopuc"
 	"usuf-bot-remake/internal/usecase/playuc"
+	"usuf-bot-remake/internal/usecase/randomuc"
 	"usuf-bot-remake/internal/usecase/skipuc"
 	"usuf-bot-remake/internal/usecase/useruc"
 	"usuf-bot-remake/pkg/discord"
 )
 
 type Application struct {
-	groupUseCase *groupuc.UseCase
-	userUseCase  *useruc.UseCase
-	playUseCase  *playuc.UseCase
-	skipUseCase  *skipuc.UseCase
+	groupUseCase  *groupuc.UseCase
+	userUseCase   *useruc.UseCase
+	playUseCase   *playuc.UseCase
+	skipUseCase   *skipuc.UseCase
+	loopUseCase   *loopuc.UseCase
+	loopqUseCase  *loopquc.UseCase
+	randomUseCase *randomuc.UseCase
 }
 
-func New(session *discord.Discord) *Application {
+func New(session *discord.Discord, channelManager *discordchannelmanager.Manager) *Application {
 	groupRepository := grouprepoinmemory.New()
 	groupProvider := groupprovider.New(groupRepository)
 
@@ -45,21 +52,27 @@ func New(session *discord.Discord) *Application {
 	djStand := djstand.New(nil)
 
 	danceFloorManager := dancefloormanager.NewDiscord(session.Session)
-	notifier := discordnotifier.New()
-	diskJockey := dj.New(djStand, danceFloorManager, notifier)
+	notifier := discordnotifier.New(session.Session)
+	diskJockey := dj.New(djStand, danceFloorManager, notifier, channelManager)
 
 	skipUseCase := skipuc.New(groupProvider, diskJockey, queueProvider, trackProvider, userProvider)
 	groupUseCase := groupuc.New(groupProvider)
 	userUseCase := useruc.New(userProvider)
 	playUseCase := playuc.New(queueProvider, trackProvider, diskJockey)
+	loopUseCase := loopuc.New(diskJockey, queueProvider, trackProvider)
+	loopqUseCase := loopquc.New(diskJockey, queueProvider, trackProvider)
+	randomUseCase := randomuc.New(diskJockey, queueProvider, trackProvider)
 
 	djStand.SetSkipUseCase(skipUseCase)
 
 	return &Application{
-		groupUseCase: groupUseCase,
-		userUseCase:  userUseCase,
-		playUseCase:  playUseCase,
-		skipUseCase:  skipUseCase,
+		groupUseCase:  groupUseCase,
+		userUseCase:   userUseCase,
+		playUseCase:   playUseCase,
+		skipUseCase:   skipUseCase,
+		loopUseCase:   loopUseCase,
+		loopqUseCase:  loopqUseCase,
+		randomUseCase: randomUseCase,
 	}
 }
 
@@ -77,4 +90,16 @@ func (a *Application) PlayUseCase() *playuc.UseCase {
 
 func (a *Application) SkipUseCase() *skipuc.UseCase {
 	return a.skipUseCase
+}
+
+func (a *Application) LoopUseCase() *loopuc.UseCase {
+	return a.loopUseCase
+}
+
+func (a *Application) LoopqUseCase() *loopquc.UseCase {
+	return a.loopqUseCase
+}
+
+func (a *Application) RandomUseCase() *randomuc.UseCase {
+	return a.randomUseCase
 }

@@ -9,11 +9,15 @@ import (
 	"usuf-bot-remake/config"
 	"usuf-bot-remake/internal/api/discordchat"
 	"usuf-bot-remake/internal/api/discordchat/command"
+	"usuf-bot-remake/internal/api/discordchat/command/loopc"
+	"usuf-bot-remake/internal/api/discordchat/command/loopqc"
 	"usuf-bot-remake/internal/api/discordchat/command/playc"
+	"usuf-bot-remake/internal/api/discordchat/command/randomc"
 	"usuf-bot-remake/internal/api/discordchat/command/skipc"
 	"usuf-bot-remake/internal/api/discordchat/middleware"
 	"usuf-bot-remake/internal/api/discordchat/router"
 	"usuf-bot-remake/internal/app"
+	discordchannelmanager "usuf-bot-remake/internal/infrastructure/channelmanager/discord"
 	"usuf-bot-remake/pkg/discord"
 	"usuf-bot-remake/pkg/logger"
 
@@ -39,20 +43,28 @@ func main() {
 	}
 	defer discordSession.Close()
 
-	application := app.New(discordSession)
+	channelManager := discordchannelmanager.New()
+
+	application := app.New(discordSession, channelManager)
 
 	playCommand := playc.New(application.PlayUseCase())
 	skipCommand := skipc.New(application.SkipUseCase())
+	loopCommand := loopc.New(application.LoopUseCase())
+	loopqCommand := loopqc.New(application.LoopqUseCase())
+	randomCommand := randomc.New(application.RandomUseCase())
 
 	discordMiddleware := middleware.New(
 		application.GroupUseCase(),
 		application.UserUseCase(),
 	)
 
-	discordChatRouter := router.New(cfg.Discord(), discordMiddleware,
+	discordChatRouter := router.New(cfg.Discord(), channelManager, discordMiddleware,
 		[]command.Command{
 			playCommand,
 			skipCommand,
+			loopCommand,
+			loopqCommand,
+			randomCommand,
 		},
 		log,
 	)
