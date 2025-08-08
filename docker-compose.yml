@@ -1,0 +1,17 @@
+services:
+  usuf-bot:
+    container_name: usuf-bot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - LOGGER_LEVEL=debug
+      - DISCORD_PREFIX=-
+      - DISCORD_TOKEN=XXX
+    networks:
+      - default
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
