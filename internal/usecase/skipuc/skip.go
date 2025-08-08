@@ -59,6 +59,10 @@ func (u *UseCase) skip(ctx context.Context, groupID id.Group) error {
 			nextNumber = currentQueue.CurrentNumber() + 1
 		}
 	case queue.OrderTypeRandom:
+		if currentQueue.Length() == 1 {
+			nextNumber = 1
+			break
+		}
 		generatedNumber := currentQueue.CurrentNumber()
 		for generatedNumber == currentQueue.CurrentNumber() {
 			rand.Seed(time.Now().UnixNano())

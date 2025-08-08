@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"usuf-bot-remake/internal/api/discordchat/command"
+	"usuf-bot-remake/internal/api/discordchat/command/clearc"
 	"usuf-bot-remake/internal/api/discordchat/command/loopc"
 	"usuf-bot-remake/internal/api/discordchat/command/loopqc"
 	"usuf-bot-remake/internal/api/discordchat/command/playc"
@@ -27,6 +28,7 @@ func (c *Command) Execute(ctx context.Context, args []string) {
 		loopc.New(nil),
 		loopqc.New(nil),
 		randomc.New(nil),
+		clearc.New(nil),
 		New(nil),
 	}
 

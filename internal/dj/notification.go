@@ -85,3 +85,25 @@ func (d *DJ) NotifyHelp(ctx context.Context, externalGroupID id.GroupExternal, r
 
 	return nil
 }
+
+func (d *DJ) NotifyClearQueue(ctx context.Context, externalGroupID id.GroupExternal) error {
+	channelID, err := d.channelManager.Get(ctx, externalGroupID)
+	if err != nil {
+		if errors.Is(err, channelmanager.ErrNotFound) {
+			return nil
+		}
+		return fmt.Errorf("failed getting channel id from external group: %w", err)
+	}
+
+	err = d.notifier.Send(ctx, channelID, []notification.Notification{
+		{
+			Title: util.Ptr("Очередь очищена"),
+			Color: util.Ptr(greenColor),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed notifying channel: %w", err)
+	}
+
+	return nil
+}

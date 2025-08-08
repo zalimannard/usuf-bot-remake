@@ -9,6 +9,7 @@ import (
 	"usuf-bot-remake/config"
 	"usuf-bot-remake/internal/api/discordchat"
 	"usuf-bot-remake/internal/api/discordchat/command"
+	"usuf-bot-remake/internal/api/discordchat/command/clearc"
 	"usuf-bot-remake/internal/api/discordchat/command/helpc"
 	"usuf-bot-remake/internal/api/discordchat/command/loopc"
 	"usuf-bot-remake/internal/api/discordchat/command/loopqc"
@@ -53,6 +54,7 @@ func main() {
 	loopCommand := loopc.New(application.LoopUseCase())
 	loopqCommand := loopqc.New(application.LoopqUseCase())
 	randomCommand := randomc.New(application.RandomUseCase())
+	clearCommand := clearc.New(application.ClearUseCase())
 	helpCommand := helpc.New(application.HelpUseCase())
 
 	discordMiddleware := middleware.New(
@@ -67,6 +69,7 @@ func main() {
 			loopCommand,
 			loopqCommand,
 			randomCommand,
+			clearCommand,
 			helpCommand,
 		},
 		log,
