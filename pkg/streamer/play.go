@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"layeh.com/gopus"
@@ -207,7 +208,8 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 
 			pcm := make([]int16, frameSize*channels)
 			if err := binary.Read(reader, binary.LittleEndian, pcm); err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				fmt.Println("LOOK AT ME", err, err.Error())
+				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || strings.Contains(err.Error(), "file already closed") {
 					// конец потока — корректно завершаем
 					select {
 					case errChan <- ErrEndOfStream:
