@@ -9,14 +9,7 @@ import (
 type Config struct {
 	LoggerValue  Logger  `envconfig:"LOGGER"`
 	DiscordValue Discord `envconfig:"DISCORD"`
-}
-
-type Logger struct {
-	LevelValue string `envconfig:"LEVEL"`
-}
-
-func (l Logger) Level() string {
-	return l.LevelValue
+	YouTubeValue YouTube `envconfig:"YOUTUBE"`
 }
 
 func (c Config) Logger() Logger {
@@ -25,6 +18,18 @@ func (c Config) Logger() Logger {
 
 func (c Config) Discord() Discord {
 	return c.DiscordValue
+}
+
+func (c Config) YouTube() YouTube {
+	return c.YouTubeValue
+}
+
+type Logger struct {
+	LevelValue string `envconfig:"LEVEL"`
+}
+
+func (l Logger) Level() string {
+	return l.LevelValue
 }
 
 type Discord struct {
@@ -38,6 +43,14 @@ func (d Discord) Prefix() string {
 
 func (d Discord) Token() string {
 	return d.TokenValue
+}
+
+type YouTube struct {
+	APIKeyValue string `envconfig:"API_KEY"`
+}
+
+func (d YouTube) APIKey() string {
+	return d.APIKeyValue
 }
 
 func Parse() (Config, error) {

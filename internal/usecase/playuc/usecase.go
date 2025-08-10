@@ -17,6 +17,7 @@ type queueProvider interface {
 
 type trackProvider interface {
 	GetByURL(ctx context.Context, targetURL url.URL) (*track.Track, error)
+	ExpandURL(ctx context.Context, trackURL url.URL) ([]url.URL, error)
 }
 
 type dj interface {

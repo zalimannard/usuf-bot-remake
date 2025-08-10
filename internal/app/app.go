@@ -5,6 +5,7 @@ import (
 	"usuf-bot-remake/internal/dj"
 	discordchannelmanager "usuf-bot-remake/internal/infrastructure/channelmanager/discord"
 	dancefloormanager "usuf-bot-remake/internal/infrastructure/dancefloor/manager"
+	youtubeinforequester "usuf-bot-remake/internal/infrastructure/inforequester/youtube"
 	discordnotifier "usuf-bot-remake/internal/infrastructure/notifier/discord"
 	grouprepoinmemory "usuf-bot-remake/internal/infrastructure/repository/grouprepo/inmemory"
 	queuerepoinmemory "usuf-bot-remake/internal/infrastructure/repository/queuerepo/inmemory"
@@ -39,7 +40,7 @@ type Application struct {
 	helpUseCase   *helpuc.UseCase
 }
 
-func New(session *discord.Discord, channelManager *discordchannelmanager.Manager) *Application {
+func New(session *discord.Discord, channelManager *discordchannelmanager.Manager, infoRequester *youtubeinforequester.Requester) *Application {
 	groupRepository := grouprepoinmemory.New()
 	groupProvider := groupprovider.New(groupRepository)
 
@@ -48,7 +49,7 @@ func New(session *discord.Discord, channelManager *discordchannelmanager.Manager
 
 	trackLoader := trackloader.New()
 	trackRepository := trackrepoinmemory.New()
-	trackProvider := trackprovider.New(trackRepository, trackLoader)
+	trackProvider := trackprovider.New(trackRepository, trackLoader, infoRequester)
 
 	userRepository := userrepoinmemory.New()
 	userProvider := userprovider.New(userRepository)

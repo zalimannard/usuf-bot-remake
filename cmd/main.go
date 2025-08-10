@@ -20,6 +20,7 @@ import (
 	"usuf-bot-remake/internal/api/discordchat/router"
 	"usuf-bot-remake/internal/app"
 	discordchannelmanager "usuf-bot-remake/internal/infrastructure/channelmanager/discord"
+	youtubeinforequester "usuf-bot-remake/internal/infrastructure/inforequester/youtube"
 	"usuf-bot-remake/pkg/discord"
 	"usuf-bot-remake/pkg/logger"
 
@@ -47,7 +48,9 @@ func main() {
 
 	channelManager := discordchannelmanager.New()
 
-	application := app.New(discordSession, channelManager)
+	infoRequester := youtubeinforequester.New(cfg.YouTube())
+
+	application := app.New(discordSession, channelManager, infoRequester)
 
 	playCommand := playc.New(application.PlayUseCase())
 	skipCommand := skipc.New(application.SkipUseCase())

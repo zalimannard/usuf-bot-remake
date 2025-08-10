@@ -26,11 +26,18 @@ func (u *UseCase) PlayByURLs(ctx context.Context, trackURLs []url.URL) error {
 
 	tracksToAdd := make([]track.Track, 0, len(trackURLs))
 	for _, trackURL := range trackURLs {
-		trackToAdd, err := u.trackProvider.GetByURL(ctx, trackURL)
+		resolvedURL, err := u.trackProvider.ExpandURL(ctx, trackURL)
 		if err != nil {
-			return fmt.Errorf("failed to get track by url: %s", err.Error())
+			return fmt.Errorf("failed to resolve tracks by url: %s", err.Error())
 		}
-		tracksToAdd = append(tracksToAdd, *trackToAdd)
+
+		for i := range resolvedURL {
+			trackToAdd, err := u.trackProvider.GetByURL(ctx, resolvedURL[i])
+			if err != nil {
+				return fmt.Errorf("failed to get track by url: %s", err.Error())
+			}
+			tracksToAdd = append(tracksToAdd, *trackToAdd)
+		}
 	}
 
 	newQueueItems := make([]queue.Item, 0, len(tracksToAdd))
