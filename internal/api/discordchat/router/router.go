@@ -52,6 +52,15 @@ func (r *Router) OnNewMessage(s *discordgo.Session, m *discordgo.MessageCreate) 
 		return
 	}
 
+	if m.GuildID == "" {
+		return
+	}
+
+	vs, err := s.State.VoiceState(m.GuildID, m.Author.ID)
+	if err != nil || vs == nil || vs.ChannelID == "" {
+		return
+	}
+
 	parts := strings.Fields(m.Content[len(r.prefix):])
 	if len(parts) == 0 {
 		return
