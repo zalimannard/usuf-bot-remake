@@ -8,6 +8,7 @@ services:
       - LOGGER_LEVEL=debug
       - DISCORD_PREFIX=-
       - DISCORD_TOKEN=XXX
+      - YOUTUBE_API_KEY=XXX
     networks:
       - default
     restart: unless-stopped
