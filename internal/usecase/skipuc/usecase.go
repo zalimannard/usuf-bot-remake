@@ -17,6 +17,7 @@ type groupProvider interface {
 type dj interface {
 	Start(ctx context.Context, targetGroup *group.Group, targetUser *user.User, trackToStart *track.Track) error
 	Close(ctx context.Context, groupID id.Group) error
+	NotifyNowPlaying(ctx context.Context, externalGroupID id.GroupExternal, number int, totalNumber int, requester user.User, targetTrack track.Track) error
 }
 
 type queueProvider interface {

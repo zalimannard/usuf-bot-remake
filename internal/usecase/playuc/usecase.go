@@ -23,6 +23,8 @@ type trackProvider interface {
 
 type dj interface {
 	Start(ctx context.Context, targetGroup *group.Group, targetUser *user.User, trackToStart *track.Track) error
+	NotifyNowPlaying(ctx context.Context, externalGroupID id.GroupExternal, number int, totalNumber int, requester user.User, targetTrack track.Track) error
+	NotifyTrackAdded(ctx context.Context, externalGroupID id.GroupExternal, number int, totalNumber int, requester user.User, targetTrack track.Track) error
 }
 
 type UseCase struct {

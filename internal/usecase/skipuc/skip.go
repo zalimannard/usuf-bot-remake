@@ -98,6 +98,11 @@ func (u *UseCase) skip(ctx context.Context, groupID id.Group) error {
 		return fmt.Errorf("failed to get track requester: %s", err.Error())
 	}
 
+	requester, err := u.userProvider.Get(ctx, trackRequester.ID())
+	if err != nil {
+		return fmt.Errorf("failed to get requester: %s", err.Error())
+	}
+
 	err = u.queueProvider.Update(ctx, newQueue)
 	if err != nil {
 		return fmt.Errorf("failed to update queue: %s", err.Error())
@@ -106,6 +111,11 @@ func (u *UseCase) skip(ctx context.Context, groupID id.Group) error {
 	err = u.dj.Start(ctx, targetGroup, trackRequester, nextTrack)
 	if err != nil {
 		return fmt.Errorf("failed to start new track by dj: %s", err.Error())
+	}
+
+	err = u.dj.NotifyNowPlaying(ctx, targetGroup.ExternalID(), nextNumber, newQueue.Length(), *requester, *nextTrack)
+	if err != nil {
+		return fmt.Errorf("failed to notify: %s", err.Error())
 	}
 
 	return nil

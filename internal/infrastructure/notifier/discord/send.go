@@ -34,10 +34,26 @@ func (n *Notifier) sendOne(ctx context.Context, channelID string, notificationTo
 		color = *notificationToSend.Color
 	}
 
+	var image *discordgo.MessageEmbedImage = nil
+	if notificationToSend.ImageURL != nil {
+		image = &discordgo.MessageEmbedImage{
+			URL: *notificationToSend.ImageURL,
+		}
+	}
+
+	var thumbnail *discordgo.MessageEmbedThumbnail = nil
+	if notificationToSend.ThumbnailURL != nil {
+		thumbnail = &discordgo.MessageEmbedThumbnail{
+			URL: *notificationToSend.ThumbnailURL,
+		}
+	}
+
 	embed := &discordgo.MessageEmbed{
 		Title:       title,
 		Description: description,
 		Color:       color,
+		Image:       image,
+		Thumbnail:   thumbnail,
 	}
 
 	message := &discordgo.MessageSend{

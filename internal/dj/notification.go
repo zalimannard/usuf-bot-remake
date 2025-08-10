@@ -107,3 +107,83 @@ func (d *DJ) NotifyClearQueue(ctx context.Context, externalGroupID id.GroupExter
 
 	return nil
 }
+
+func (d *DJ) NotifyNowPlaying(ctx context.Context, externalGroupID id.GroupExternal, number int, totalNumber int, requester user.User, targetTrack track.Track) error {
+	channelID, err := d.channelManager.Get(ctx, externalGroupID)
+	if err != nil {
+		if errors.Is(err, channelmanager.ErrNotFound) {
+			return nil
+		}
+		return fmt.Errorf("failed getting channel id from external group: %w", err)
+	}
+
+	author := ""
+	if targetTrack.Author() != nil {
+		author = fmt.Sprintf("%s\n", *targetTrack.Author())
+	}
+
+	duration := ""
+	if targetTrack.HasDuration() {
+		duration = fmt.Sprintf("%s\n", util.FormatAsHHMMSS(*targetTrack.Duration()))
+	}
+
+	var imageURL *string = nil
+	if targetTrack.HasImage() {
+		imageURL = util.Ptr(targetTrack.ImageURL().String())
+	}
+
+	trackURL := targetTrack.URL()
+	err = d.notifier.Send(ctx, channelID, []notification.Notification{
+		{
+			Title:       util.Ptr("Сейчас играет"),
+			Description: util.Ptr(fmt.Sprintf("%d/%d. %s\n%s%s%s\n\nЗаказал: %s", number, totalNumber, targetTrack.Title(), author, duration, trackURL.String(), requester.Name())),
+			Color:       util.Ptr(greenColor),
+			ImageURL:    imageURL,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed notifying channel: %w", err)
+	}
+
+	return nil
+}
+
+func (d *DJ) NotifyTrackAdded(ctx context.Context, externalGroupID id.GroupExternal, number int, totalNumber int, requester user.User, targetTrack track.Track) error {
+	channelID, err := d.channelManager.Get(ctx, externalGroupID)
+	if err != nil {
+		if errors.Is(err, channelmanager.ErrNotFound) {
+			return nil
+		}
+		return fmt.Errorf("failed getting channel id from external group: %w", err)
+	}
+
+	author := ""
+	if targetTrack.Author() != nil {
+		author = fmt.Sprintf("%s\n", *targetTrack.Author())
+	}
+
+	duration := ""
+	if targetTrack.HasDuration() {
+		duration = fmt.Sprintf("%s\n", util.FormatAsHHMMSS(*targetTrack.Duration()))
+	}
+
+	var imageURL *string = nil
+	if targetTrack.HasImage() {
+		imageURL = util.Ptr(targetTrack.ImageURL().String())
+	}
+
+	trackURL := targetTrack.URL()
+	err = d.notifier.Send(ctx, channelID, []notification.Notification{
+		{
+			Title:        util.Ptr("Трек добавлен"),
+			Description:  util.Ptr(fmt.Sprintf("%d/%d. %s\n%s%s%s\n\nЗаказал: %s", number, totalNumber, targetTrack.Title(), author, duration, trackURL.String(), requester.Name())),
+			Color:        util.Ptr(greenColor),
+			ThumbnailURL: imageURL,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed notifying channel: %w", err)
+	}
+
+	return nil
+}

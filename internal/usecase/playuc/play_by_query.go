@@ -55,10 +55,20 @@ func (u *UseCase) PlayByQuery(ctx context.Context, query string) error {
 		return fmt.Errorf("failed to update queue: %s", err.Error())
 	}
 
+	err = u.dj.NotifyTrackAdded(ctx, ctxGroup.ExternalID(), newQueue.Length(), newQueue.Length(), *ctxUser, *trackToAdd)
+	if err != nil {
+		return fmt.Errorf("failed to notify: %s", err.Error())
+	}
+
 	if currentQueue.CurrentNumber() == 0 {
 		err = u.dj.Start(ctx, ctxGroup, ctxUser, trackToAdd)
 		if err != nil {
 			return fmt.Errorf("failed to start track by dj: %s", err.Error())
+		}
+
+		err = u.dj.NotifyNowPlaying(ctx, ctxGroup.ExternalID(), currentQueue.Length()+1, newQueue.Length(), *ctxUser, *trackToAdd)
+		if err != nil {
+			return fmt.Errorf("failed to notify: %s", err.Error())
 		}
 	}
 
