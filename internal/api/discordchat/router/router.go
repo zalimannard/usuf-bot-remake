@@ -73,7 +73,7 @@ func (r *Router) OnNewMessage(s *discordgo.Session, m *discordgo.MessageCreate) 
 		os.Exit(0)
 	}
 
-	if commandName == "help" {
+	if commandName == "help" || commandName == "h" {
 		args = []string{r.prefix}
 	}
 
