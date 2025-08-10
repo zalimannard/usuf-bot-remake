@@ -16,6 +16,8 @@ import (
 	"layeh.com/gopus"
 )
 
+// Мощный вайбкодинг
+
 const (
 	attemptsCount  = 5
 	attemptTimeout = 10 * time.Second
@@ -46,10 +48,20 @@ func Play(ctx context.Context, targetURL url.URL) (<-chan []byte, <-chan error) 
 			// таймаут — попробуем снова
 			continue
 		case err, ok := <-errCh:
-			// получили ошибку сразу — логируем и пробуем ещё
-			if ok {
-				fmt.Printf("Attempt %d failed: %v\n", attempt+1, err)
+			// получили ошибку до первого пакета
+			if !ok {
+				// канал ошибок закрыт — пробуем заново
+				continue
 			}
+			// Если поток просто закончился — не пытаемся перезапускать бесконечно.
+			if errors.Is(err, ErrEndOfStream) {
+				// Вернём канал ошибок и пустой opus-канал (закрытый) — caller увидит конец.
+				empty := make(chan []byte)
+				close(empty)
+				return empty, errCh
+			}
+			fmt.Printf("Attempt %d failed: %v\n", attempt+1, err)
+			// иначе пробуем следующую попытку
 			continue
 		case first, ok := <-opusCh:
 			// получили первый opus-пакет — нужно вернуть канал, но не потерять пакет
@@ -97,7 +109,6 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 		defer close(errChan)
 		defer close(opusChan)
 
-		// используем io.Pipe чтобы надёжно связать stdout yt-dlp с stdin ffmpeg
 		pr, pw := io.Pipe()
 
 		ytCmd := exec.CommandContext(ctx, "yt-dlp", "-o", "-", targetURL.String())
@@ -106,6 +117,7 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 
 		ffmpegCmd := exec.CommandContext(ctx,
 			"ffmpeg",
+			"-nostdin", "-hide_banner", // уменьшает шум в логах
 			"-i", "pipe:0",
 			"-f", "s16le",
 			"-ar", fmt.Sprint(sampleRate),
@@ -115,7 +127,6 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 		ffmpegCmd.Stdin = pr
 		ffmpegCmd.Stderr = os.Stderr
 
-		// получаем stdout ffmpeg (PCM)
 		ffOut, err := ffmpegCmd.StdoutPipe()
 		if err != nil {
 			select {
@@ -127,7 +138,6 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 			return
 		}
 
-		// start ffmpeg first, чтобы он сразу был готов читать stdin
 		if err := ffmpegCmd.Start(); err != nil {
 			select {
 			case errChan <- fmt.Errorf("failed to start ffmpeg: %w", err):
@@ -138,13 +148,11 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 			return
 		}
 
-		// start yt-dlp (пишет в pw)
 		if err := ytCmd.Start(); err != nil {
 			select {
 			case errChan <- fmt.Errorf("failed to start yt-dlp: %w", err):
 			default:
 			}
-			// kill ffmpeg if yt-dlp не запустился
 			_ = ffmpegCmd.Process.Kill()
 			ffmpegCmd.Wait()
 			_ = pw.Close()
@@ -152,7 +160,7 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 			return
 		}
 
-		// после завершения yt-dlp нужно закрыть writer, чтобы ffmpeg получил EOF
+		// Закрыть pw после завершения yt-dlp (чтобы ffmpeg получил EOF)
 		go func() {
 			err := ytCmd.Wait()
 			_ = pw.Close()
@@ -164,65 +172,56 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 			}
 		}()
 
-		// отдельно ждём ffmpeg, но не блокируем основной поток — дождёмся после основного чтения
-		ffmpegDone := make(chan error, 1)
+		// Ждём ffmpeg в отдельной горутине — но не блокируем main loop
 		go func() {
-			err := ffmpegCmd.Wait()
-			ffmpegDone <- err
-			close(ffmpegDone)
+			_ = ffmpegCmd.Wait()
 		}()
 
-		// создаём энкодер opus
 		encoder, err := gopus.NewEncoder(sampleRate, channels, gopus.Audio)
 		if err != nil {
 			select {
 			case errChan <- fmt.Errorf("failed to create encoder: %w", err):
 			default:
 			}
-			// пытаемся корректно завершить процессы
-			_ = ytCmd.Process.Kill()
-			_ = ffmpegCmd.Process.Kill()
-			<-ffmpegDone
+			_ = tryKill(ytCmd, ffmpegCmd)
+			_ = pw.Close()
+			_ = pr.Close()
 			return
 		}
 
 		reader := bufio.NewReader(ffOut)
 
 		for {
-			// проверяем cancellation
+			// cancellation check
 			select {
 			case <-ctx.Done():
-				// контекст отменён — корректно убиваем процессы (CommandContext уже должен сделать это,
-				// но на всякий случай)
-				if ytCmd.Process != nil {
-					_ = ytCmd.Process.Kill()
-				}
-				if ffmpegCmd.Process != nil {
-					_ = ffmpegCmd.Process.Kill()
-				}
-				// дождёмся завершения ffmpeg
-				<-ffmpegDone
+				_ = tryKill(ytCmd, ffmpegCmd)
+				_ = pw.Close()
+				_ = pr.Close()
 				return
 			default:
 			}
 
 			pcm := make([]int16, frameSize*channels)
 			if err := binary.Read(reader, binary.LittleEndian, pcm); err != nil {
-				fmt.Println("LOOK AT ME", err, err.Error())
-				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || strings.Contains(err.Error(), "file already closed") {
-					// конец потока — корректно завершаем
-					select {
-					case errChan <- ErrEndOfStream:
-					default:
-					}
-					<-ffmpegDone
-					return
+				// нормальное завершение потока
+				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
+					strings.Contains(err.Error(), "file already closed") {
+					// нормальное завершение — не считать это ошибкой
+					_ = pw.Close()
+					_ = pr.Close()
+					_ = tryKill(ytCmd, ffmpegCmd)
+					return // opusChan закроется defer'ом
 				}
+
+				// прочая ошибка чтения
 				select {
 				case errChan <- fmt.Errorf("failed to read from ffmpeg: %w", err):
 				default:
 				}
-				<-ffmpegDone
+				_ = pw.Close()
+				_ = pr.Close()
+				_ = tryKill(ytCmd, ffmpegCmd)
 				return
 			}
 
@@ -232,20 +231,17 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 				case errChan <- fmt.Errorf("failed to encode: %w", err):
 				default:
 				}
-				<-ffmpegDone
+				_ = pw.Close()
+				_ = pr.Close()
+				_ = tryKill(ytCmd, ffmpegCmd)
 				return
 			}
 
-			// безопасная отправка (если ctx done — выходим)
 			select {
 			case <-ctx.Done():
-				if ytCmd.Process != nil {
-					_ = ytCmd.Process.Kill()
-				}
-				if ffmpegCmd.Process != nil {
-					_ = ffmpegCmd.Process.Kill()
-				}
-				<-ffmpegDone
+				_ = tryKill(ytCmd, ffmpegCmd)
+				_ = pw.Close()
+				_ = pr.Close()
 				return
 			case opusChan <- opus:
 			}
@@ -253,4 +249,15 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 	}()
 
 	return opusChan, errChan
+}
+
+// вспомогательная функция — пытается аккуратно убить процессы, игнорируя ошибки
+func tryKill(cmds ...*exec.Cmd) error {
+	for _, c := range cmds {
+		if c == nil || c.Process == nil {
+			continue
+		}
+		_ = c.Process.Kill()
+	}
+	return nil
 }

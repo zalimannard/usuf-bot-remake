@@ -17,10 +17,13 @@ func (d *DJ) Start(ctx context.Context, targetGroup *group.Group, targetUser *us
 			return fmt.Errorf("failed to create dance floor: %s", err.Error())
 		}
 		go func(danceFloor dancefloor.DanceFloor) {
-			err := <-newDanceFloor.ErrChan()
-			d.disorderChan <- disorder{
-				danceFloor: danceFloor,
-				err:        err,
+			// TODO: Сделать завершение
+			for {
+				err := <-newDanceFloor.ErrChan()
+				d.disorderChan <- disorder{
+					danceFloor: danceFloor,
+					err:        err,
+				}
 			}
 		}(newDanceFloor)
 		targetDanceFloor = newDanceFloor

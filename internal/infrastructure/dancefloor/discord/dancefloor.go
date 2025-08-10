@@ -64,13 +64,15 @@ func (d *DanceFloor) playBackground(ctx context.Context, urlToPlay url.URL) {
 			return
 		case contentPart, opened := <-opusChan:
 			if !opened {
+				d.errChan <- dancefloor.ErrEndOfTrack
 				return
 			}
 			d.voiceConnection.OpusSend <- contentPart
-		case err := <-errChan:
-			if errors.Is(err, streamer.ErrEndOfStream) {
-				d.errChan <- fmt.Errorf("%w: %s", dancefloor.ErrEndOfTrack, err.Error())
-			} else if errors.Is(err, streamer.ErrPlaybackUnavailable) {
+		case err, opened := <-errChan:
+			if !opened {
+				continue
+			}
+			if errors.Is(err, streamer.ErrPlaybackUnavailable) {
 				d.errChan <- fmt.Errorf("%w: %s", dancefloor.ErrEndOfTrack, err.Error())
 			} else {
 				d.errChan <- fmt.Errorf("error while playing: %w", err)
