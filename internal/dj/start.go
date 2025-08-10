@@ -3,6 +3,7 @@ package dj
 import (
 	"context"
 	"fmt"
+	"time"
 	"usuf-bot-remake/internal/domain/entity/group"
 	"usuf-bot-remake/internal/domain/entity/track"
 	"usuf-bot-remake/internal/domain/entity/user"
@@ -34,6 +35,8 @@ func (d *DJ) Start(ctx context.Context, targetGroup *group.Group, targetUser *us
 	if err != nil {
 		return fmt.Errorf("failed to stop tracks: %s", err.Error())
 	}
+
+	time.Sleep(3 * time.Second)
 
 	err = targetDanceFloor.Play(trackToStart.URL())
 	if err != nil {

@@ -21,15 +21,19 @@ import (
 
 const (
 	attemptsCount  = 5
-	attemptTimeout = 30 * time.Second // было 10s — на холодном старте может не хватать
+	attemptTimeout = 30 * time.Second
 	frameSize      = 960
 	sampleRate     = 48000
 	channels       = 2
+
+	// Если потребитель перестал читать — не висим бесконечно.
+	sendBlockTimeout = 3 * time.Second
 )
 
 var (
 	ErrEndOfStream         = errors.New("end of stream")
 	ErrPlaybackUnavailable = errors.New("playback unavailable")
+	ErrConsumerBlocked     = errors.New("consumer is not reading (blocked)")
 )
 
 // Play пробует запустить play до attemptsCount раз.
@@ -40,7 +44,6 @@ func Play(ctx context.Context, targetURL url.URL) (<-chan []byte, <-chan error) 
 	for attempt := 0; attempt < attemptsCount; attempt++ {
 		fmt.Printf("Attempt %d...\n", attempt+1)
 
-		// Отменяем предыдущую попытку (если была)
 		if cancelPrev != nil {
 			cancelPrev()
 		}
@@ -52,51 +55,47 @@ func Play(ctx context.Context, targetURL url.URL) (<-chan []byte, <-chan error) 
 		timer := time.NewTimer(attemptTimeout)
 		select {
 		case <-ctx.Done():
+			fmt.Println("1")
 			timer.Stop()
 			cancel()
 			return nil, nil
 
 		case <-timer.C:
-			// Не дождались первого пакета — мягко отменяем попытку и пробуем снова
+			fmt.Println("2")
 			timer.Stop()
 			cancel()
 			drainErrCh(errCh, 2*time.Second)
 			continue
 
 		case err, ok := <-errCh:
-			// Получили ошибку до первого пакета
+			fmt.Println("3")
 			if !ok {
-				// попытка завершилась без деталей — пробуем ещё
 				cancel()
 				continue
 			}
 			if errors.Is(err, ErrEndOfStream) {
-				// Конец потока до первого пакета — возвратим пустой opus-канал, errCh пробросим вызывающему
 				empty := make(chan []byte)
 				close(empty)
 				return empty, errCh
 			}
 			fmt.Printf("Attempt %d failed: %v\n", attempt+1, err)
-			// Отменяем и пробуем следующую
 			cancel()
 			drainErrCh(errCh, 2*time.Second)
 			continue
 
 		case first, ok := <-opusCh:
-			// Первый opus-пакет получен — успех
+			fmt.Println("4")
 			if !ok {
-				// канал закрылся слишком рано — пробуем снова
 				cancel()
 				continue
 			}
 			timer.Stop()
-
-			// Раз мы успешно стартовали — больше не отменяем эту попытку
 			cancelPrev = nil
 
 			out := make(chan []byte, 16)
 			out <- first
 
+			// Форвардер opusCh -> out с тайм-аутом на случай, если потребитель завис.
 			go func() {
 				defer close(out)
 				for {
@@ -111,6 +110,9 @@ func Play(ctx context.Context, targetURL url.URL) (<-chan []byte, <-chan error) 
 						case out <- p:
 						case <-ctx.Done():
 							return
+						case <-time.After(sendBlockTimeout):
+							// Потребитель не читает — прекращаем, чтобы не зависнуть
+							return
 						}
 					}
 				}
@@ -119,7 +121,6 @@ func Play(ctx context.Context, targetURL url.URL) (<-chan []byte, <-chan error) 
 		}
 	}
 
-	// Все попытки исчерпаны
 	if cancelPrev != nil {
 		cancelPrev()
 	}
@@ -151,7 +152,7 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 			"ffmpeg",
 			"-nostdin", "-hide_banner",
 			"-i", "pipe:0",
-			"-vn", // видео не нужно
+			"-vn",
 			"-f", "s16le",
 			"-ar", fmt.Sprint(sampleRate),
 			"-ac", fmt.Sprint(channels),
@@ -193,7 +194,6 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 			return
 		}
 
-		// Закрыть pw после завершения yt-dlp (чтобы ffmpeg получил EOF)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -207,7 +207,6 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 			}
 		}()
 
-		// Ждём ffmpeg в отдельной горутине
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -241,11 +240,9 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 
 			pcm := make([]int16, frameSize*channels)
 			if err := binary.Read(reader, binary.LittleEndian, pcm); err != nil {
-				// нормальное завершение потока
 				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
 					strings.Contains(err.Error(), "file already closed") {
 					if !wroteAny {
-						// Сообщим наверх, что поток завершился до первого пакета
 						select {
 						case errChan <- ErrEndOfStream:
 						default:
@@ -257,7 +254,6 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 					return
 				}
 
-				// прочая ошибка чтения
 				select {
 				case errChan <- fmt.Errorf("failed to read from ffmpeg: %w", err):
 				default:
@@ -280,6 +276,7 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 				return
 			}
 
+			// Критично: не блокируемся бесконечно, если нас перестали читать.
 			select {
 			case <-ctx.Done():
 				_ = tryKill(ytCmd, ffmpegCmd)
@@ -288,6 +285,15 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 				return
 			case opusChan <- opus:
 				wroteAny = true
+			case <-time.After(sendBlockTimeout):
+				select {
+				case errChan <- ErrConsumerBlocked:
+				default:
+				}
+				_ = pw.Close()
+				_ = pr.Close()
+				_ = tryKill(ytCmd, ffmpegCmd)
+				return
 			}
 		}
 	}()
@@ -295,7 +301,6 @@ func play(ctx context.Context, targetURL url.URL) (chan []byte, chan error) {
 	return opusChan, errChan
 }
 
-// вспомогательная функция — пытается аккуратно убить процессы, игнорируя ошибки
 func tryKill(cmds ...*exec.Cmd) error {
 	for _, c := range cmds {
 		if c == nil || c.Process == nil {
@@ -306,7 +311,6 @@ func tryKill(cmds ...*exec.Cmd) error {
 	return nil
 }
 
-// best-effort дренаж канала ошибок, чтобы дать горутине корректно завершиться
 func drainErrCh(ch <-chan error, d time.Duration) {
 	if ch == nil {
 		return

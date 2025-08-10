@@ -2,7 +2,6 @@ package dancefloordiscord
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"usuf-bot-remake/internal/domain/entity/id"
@@ -72,11 +71,7 @@ func (d *DanceFloor) playBackground(ctx context.Context, urlToPlay url.URL) {
 			if !opened {
 				continue
 			}
-			if errors.Is(err, streamer.ErrPlaybackUnavailable) {
-				d.errChan <- fmt.Errorf("%w: %s", dancefloor.ErrEndOfTrack, err.Error())
-			} else {
-				d.errChan <- fmt.Errorf("error while playing: %w", err)
-			}
+			d.errChan <- fmt.Errorf("error while playing: %w", err)
 			return
 		}
 	}
