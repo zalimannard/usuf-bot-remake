@@ -33,4 +33,5 @@ type trackLoader interface {
 
 type infoRequester interface {
 	PlaylistURLs(ctx context.Context, playlistID string) ([]url.URL, error)
+	GetURLByQuery(ctx context.Context, query string) (*url.URL, error)
 }
